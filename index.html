@@ -1,0 +1,296 @@
+<html><head><base href="." />
+<title>Chord Quiz - Test Your Music Theory</title>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+<style>
+body {
+    background-color: #090909;
+    color: #D6DCDC;
+    font-family: 'Arial', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0;
+    padding: 20px;
+    min-height: 100vh;
+}
+
+.container {
+    background-color: #111111;
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid #1E1E1E;
+    max-width: 1000px;
+    width: 95%;
+}
+
+h1 {
+font-size: 18px;
+font-weight: 500;
+text-transform: uppercase;
+color: #D6DCDC;
+}
+
+.piano {
+    display: flex;
+    position: relative;
+    margin: 20px 0;
+    justify-content: center;
+    max-width: 100%;
+    overflow-x: auto;
+    min-height: 220px;
+}
+
+.key {
+    position: relative;
+    width: calc(100% / 14); /* 14 white keys total */
+    min-width: 2vw;
+    height: 200px;
+    border: 1px solid #D6DCDC;
+    background: #111111;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    margin: 0;
+    padding: 0;
+    border-radius: 0 0 4px 4px;
+}
+
+.key:hover {
+    background: #1E1E1E;
+}
+
+.black-key {
+    position: absolute;
+    min-width: 2.5vw;
+    max-width: 4vw;
+    height: 120px;
+    background: #000000;
+    border: 1px solid #D6DCDC;
+    z-index: 1;
+    cursor: pointer;
+    border-radius: 0 0 4px 4px;
+}
+
+.black-key:hover {
+    background: #1E1E1E;
+}
+
+/* Responsive black key positioning using percentages */
+.black-key[data-note$="C#4"] { left: 5.5%; }
+.black-key[data-note$="D#4"] { left: 12.5%; }
+.black-key[data-note$="F#4"] { left: 27%; }
+.black-key[data-note$="G#4"] { left: 34%; }
+.black-key[data-note$="A#4"] { left: 41%; }
+
+.black-key[data-note$="C#5"] { left: 55.5%; }
+.black-key[data-note$="D#5"] { left: 62.5%; }
+.black-key[data-note$="F#5"] { left: 77%; }
+.black-key[data-note$="G#5"] { left: 84%; }
+.black-key[data-note$="A#5"] { left: 91%; }
+
+.key.selected, .black-key.selected {
+    background-color: #D6DCDC;
+}
+
+.quiz-section {
+    text-align: center;
+    margin: 20px 0;
+}
+
+.chord-display {
+    font-size: clamp(1.5em, 4vw, 2em);
+    margin: 20px 0;
+}
+
+button {
+    background-color: #111111;
+    color: #D6DCDC;
+    border: 1px solid #1E1E1E;
+    padding: 10px 20px;
+    cursor: pointer;
+    margin: 10px;
+    border-radius: 4px;
+    font-size: clamp(14px, 2vw, 16px);
+}
+
+button:hover {
+    background-color: #1E1E1E;
+}
+
+.feedback-container {
+    margin: 20px 0;
+    min-height: 80px; /* Maintain space to prevent layout shift */
+}
+
+.feedback {
+    margin: 10px 0;
+    font-size: clamp(1em, 3vw, 1.2em);
+}
+
+.debug-info {
+    font-size: 0.9em;
+    color: #888;
+    margin-top: 5px;
+}
+
+.score {
+    margin: 20px 0;
+    font-size: clamp(1em, 3vw, 1.2em);
+}
+
+@media (max-width: 768px) {
+
+    .black-key {
+        min-width:20px;
+    }
+}
+</style>
+</head>
+<body>
+<div class="container">
+    <h1>Chord Quiz</h1>
+    <div class="quiz-section">
+        <div class="chord-display">Click Start to Begin!</div>
+        <div class="feedback-container">
+            <div class="feedback"></div>
+            <div class="debug-info"></div>
+        </div>
+        <div class="score">Score: 0</div>
+        <button id="startBtn">Start Quiz</button>
+        <button id="checkBtn" disabled>Check Answer</button>
+    </div>
+    <div class="piano"></div>
+</div>
+
+<script>
+const chords = [
+    { name: 'C', notes: ['C', 'E', 'G'] },
+    { name: 'Cm', notes: ['C', 'D#', 'G'] },
+    { name: 'C7', notes: ['C', 'E', 'G', 'B'] },
+    { name: 'G', notes: ['G', 'B', 'D'] },
+    { name: 'Gm', notes: ['G', 'A#', 'D'] },
+    { name: 'F', notes: ['F', 'A', 'C'] },
+    { name: 'Fm', notes: ['F', 'G#', 'C'] },
+    { name: 'Am', notes: ['A', 'C', 'E'] },
+    { name: 'Em', notes: ['E', 'G', 'B'] },
+    { name: 'Dm', notes: ['D', 'F', 'A'] }
+];
+
+function createPiano() {
+    const piano = document.querySelector('.piano');
+    const octaves = 2;
+
+    // Create white keys first
+    for (let octave = 0; octave < octaves; octave++) {
+        for (let i = 0; i < 7; i++) {
+            const key = document.createElement('div');
+            key.className = 'key';
+            const note = getNoteFromIndex(i);
+            key.dataset.note = note + (octave + 4);
+            key.addEventListener('click', toggleNote);
+            piano.appendChild(key);
+        }
+    }
+
+    // Create black keys
+    for (let octave = 0; octave < octaves; octave++) {
+        const blackKeyPositions = ['C#', 'D#', 'F#', 'G#', 'A#'];
+        blackKeyPositions.forEach((note) => {
+            const blackKey = document.createElement('div');
+            blackKey.className = 'black-key';
+            blackKey.dataset.note = note + (octave + 4);
+            blackKey.addEventListener('click', toggleNote);
+            piano.appendChild(blackKey);
+        });
+    }
+}
+
+function getNoteFromIndex(index) {
+    const notes = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+    return notes[index];
+}
+
+let currentChord = null;
+let score = 0;
+let selectedNotes = new Set();
+
+function toggleNote(event) {
+    const note = event.target.dataset.note;
+    if (event.target.classList.contains('selected')) {
+        event.target.classList.remove('selected');
+        selectedNotes.delete(note);
+    } else {
+        event.target.classList.add('selected');
+        selectedNotes.add(note);
+    }
+}
+
+function selectRandomChord() {
+    currentChord = chords[Math.floor(Math.random() * chords.length)];
+    document.querySelector('.chord-display').textContent = currentChord.name;
+    clearSelection();
+}
+
+function clearSelection() {
+    selectedNotes.clear();
+    document.querySelectorAll('.selected').forEach(key => {
+        key.classList.remove('selected');
+    });
+}
+
+function stripOctave(note) {
+    return note.replace(/[0-9]/g, '');
+}
+
+function checkAnswer() {
+    const correctNotes = new Set(currentChord.notes);
+    const selectedNotesStripped = new Set([...selectedNotes].map(stripOctave));
+    const correctNotesStripped = new Set([...correctNotes].map(stripOctave));
+
+    // Debug information
+    const debugInfo = document.querySelector('.debug-info');
+    debugInfo.innerHTML = `
+        Expected notes: ${Array.from(correctNotesStripped).join(', ')}<br>
+        Selected notes: ${Array.from(selectedNotesStripped).join(', ')}
+    `;
+
+    const isCorrect = 
+        selectedNotesStripped.size === correctNotesStripped.size &&
+        [...correctNotesStripped].every(note => selectedNotesStripped.has(note));
+
+    const feedback = document.querySelector('.feedback');
+    if (isCorrect) {
+        score++;
+        feedback.textContent = "Correct! 🥳";
+        feedback.style.color = "#4CAF50";
+        
+        // Add confetti animation
+        confetti({
+            particleCount: 100,
+            spread: 70,
+            origin: { y: 0.6 },
+            colors: ['#4CAF50', '#FDD835', '#2196F3', '#F44336', '#9C27B0']
+        });
+    } else {
+        feedback.textContent = "Incorrect! 🥺";
+        feedback.style.color = "#f44336";
+    }
+    
+    document.querySelector('.score').textContent = `Score: ${score}`;
+    setTimeout(() => {
+        selectRandomChord();
+        feedback.textContent = "";
+        debugInfo.textContent = "";
+    }, 3000);
+}
+
+document.getElementById('startBtn').addEventListener('click', () => {
+    selectRandomChord();
+    document.getElementById('checkBtn').disabled = false;
+    document.getElementById('startBtn').textContent = 'New Chord';
+});
+
+document.getElementById('checkBtn').addEventListener('click', checkAnswer);
+
+createPiano();
+</script>
+</body></html>
